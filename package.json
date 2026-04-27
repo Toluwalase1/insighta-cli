@@ -1,0 +1,32 @@
+{
+  "name": "insighta-cli",
+  "version": "1.0.0",
+  "description": "CLI for the Insighta Labs+ API",
+  "main": "src/cli.js",
+  "bin": {
+    "insighta": "./bin/insighta.js"
+  },
+  "scripts": {
+    "dev": "node ./bin/insighta.js",
+    "test": "echo \"No tests yet\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Toluwalase1/insighta-cli.git"
+  },
+  "keywords": [
+    "insighta",
+    "cli"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Toluwalase1/insighta-cli/issues"
+  },
+  "homepage": "https://github.com/Toluwalase1/insighta-cli#readme",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "dotenv": "^17.4.2"
+  }
+}

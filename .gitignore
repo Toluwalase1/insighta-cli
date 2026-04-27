@@ -1,0 +1,4 @@
+node_modules/
+.env
+stage3_tasklist.md
+phase5_agent_transfer.md
