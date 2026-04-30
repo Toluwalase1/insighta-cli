@@ -79,12 +79,12 @@ The sample values are mirrored in `.env.example`.
 `insighta login` uses a local PKCE flow:
 
 1. The CLI generates a `state`, `code_verifier`, and `code_challenge`.
-2. It starts a temporary callback server on `http://127.0.0.1:<port>/callback`.
+2. It starts a temporary callback server on `http://127.0.0.1:<port>/callback` and includes that loopback URL in the backend auth request.
 3. It opens the browser to the backend GitHub auth URL.
 4. After GitHub redirects back, the CLI validates the returned `state`.
-5. The CLI sends the authorization code and verifier to the backend.
-6. The backend returns access and refresh tokens.
-7. The CLI stores credentials in `~/.insighta/credentials.json`.
+5. The CLI sends the authorization code and verifier to the backend exchange endpoint.
+6. The backend returns a standard `{ status, data }` response with access and refresh tokens.
+7. The CLI unwraps the response, stores credentials in `~/.insighta/credentials.json`, and prints `Logged in as @username`.
 
 When an API command runs, the CLI checks whether the access token is expired. If it is, the CLI attempts to refresh it automatically using the refresh token and saves the updated credentials back to disk.
 

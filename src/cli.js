@@ -45,19 +45,28 @@ async function handleLogin() {
   await openBrowser(authUrl.toString());
   const callback = await callbackPromise;
 
-  if (!callback.code) {
+  let payload;
+
+  if (callback.accessToken && callback.refreshToken) {
+    payload = {
+      access_token: callback.accessToken,
+      refresh_token: callback.refreshToken,
+      user: {},
+    };
+  } else if (callback.code) {
+    if (callback.state !== state) {
+      throw new Error("State mismatch. Please retry login.");
+    }
+
+    payload = await exchangeCodeForTokens({
+      exchangeUrl: AUTH_EXCHANGE_URL,
+      code: callback.code,
+      codeVerifier,
+      redirectUri,
+    });
+  } else {
     throw new Error("Authorization code not found in callback.");
   }
-  if (callback.state !== state) {
-    throw new Error("State mismatch. Please retry login.");
-  }
-
-  const payload = await exchangeCodeForTokens({
-    exchangeUrl: AUTH_EXCHANGE_URL,
-    code: callback.code,
-    codeVerifier,
-    redirectUri,
-  });
 
   const credentials = {
     access_token: payload.access_token,
@@ -67,6 +76,14 @@ async function handleLogin() {
   };
 
   saveCredentials(credentials);
+
+  try {
+    const me = await requestJson("/api/users/me");
+    credentials.user = me.data || credentials.user;
+    saveCredentials(credentials);
+  } catch {
+    // Login succeeded; whoami can refresh the cached profile later.
+  }
 
   const username = credentials.user.username || "unknown";
   console.log(`Logged in as @${username}`);
@@ -95,14 +112,9 @@ async function handleLogout() {
   console.log("Logged out successfully.");
 }
 
-function handleWhoAmI() {
-  const credentials = readCredentials();
-  if (!credentials) {
-    console.log("Not logged in. Run insighta login");
-    return;
-  }
-
-  const user = credentials.user || {};
+async function handleWhoAmI() {
+  const payload = await withSpinner("Fetching current user", () => requestJson("/api/users/me"));
+  const user = payload.data || payload.user || payload;
   console.log(`Username: ${user.username || "unknown"}`);
   console.log(`Email: ${user.email || "unknown"}`);
   console.log(`Role: ${user.role || "unknown"}`);
@@ -124,7 +136,7 @@ function addProfileListOptions(command) {
 function mapListQuery(options) {
   return {
     gender: options.gender,
-    country: options.country,
+    country_id: options.country,
     age_group: options.ageGroup,
     min_age: options.minAge,
     max_age: options.maxAge,
@@ -164,26 +176,7 @@ async function handleProfilesList(options) {
 }
 
 async function handleProfilesGet(id) {
-  let payload;
-  try {
-    payload = await withSpinner("Fetching profile", () => requestJson(`/api/profiles/${id}`));
-  } catch (error) {
-    if (/not found|failed/i.test(error.message)) {
-      payload = await withSpinner("Fetching profile", () =>
-        requestJson("/api/profiles", {
-          query: { id, limit: 1 },
-        }),
-      );
-      const fallbackData = payload.data || [];
-      if (fallbackData.length === 0) {
-        throw new Error("Profile not found.");
-      }
-      console.log(JSON.stringify(fallbackData[0], null, 2));
-      return;
-    }
-    throw error;
-  }
-
+  const payload = await withSpinner("Fetching profile", () => requestJson(`/api/profiles/${id}`));
   const profile = payload.data || payload;
   console.log(JSON.stringify(profile, null, 2));
 }
@@ -192,7 +185,7 @@ async function handleProfilesSearch(query, options) {
   const payload = await withSpinner("Searching profiles", () =>
     requestJson("/api/profiles/search", {
       query: {
-        query,
+        q: query,
         page: options.page,
         limit: options.limit,
       },
@@ -225,7 +218,7 @@ async function handleProfilesExport(options) {
   const query = {
     format: options.format || "csv",
     gender: options.gender,
-    country: options.country,
+    country_id: options.country,
     age_group: options.ageGroup,
     min_age: options.minAge,
     max_age: options.maxAge,

@@ -46,7 +46,7 @@ async function refreshTokens(refreshToken) {
     throw new Error(payload.message || "Unable to refresh token. Please run insighta login.");
   }
 
-  return payload;
+  return payload.data && typeof payload.data === "object" ? payload.data : payload;
 }
 
 async function ensureValidCredentials() {
@@ -90,16 +90,30 @@ function buildUrl(pathname, query = {}) {
 async function requestJson(pathname, options = {}) {
   const credentials = await ensureValidCredentials();
   const url = buildUrl(pathname, options.query);
-  const response = await fetch(url, {
+  const send = (accessToken) => fetch(url, {
     method: options.method || "GET",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${credentials.access_token}`,
+      Authorization: `Bearer ${accessToken}`,
       "X-API-Version": "1",
       ...(options.headers || {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
+
+  let response = await send(credentials.access_token);
+  if (response.status === 401 && credentials.refresh_token) {
+    const refreshed = await refreshTokens(credentials.refresh_token);
+    const updatedCredentials = {
+      ...credentials,
+      access_token: refreshed.access_token,
+      refresh_token: refreshed.refresh_token,
+      user: refreshed.user || credentials.user || {},
+      updated_at: new Date().toISOString(),
+    };
+    saveCredentials(updatedCredentials);
+    response = await send(updatedCredentials.access_token);
+  }
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -112,14 +126,28 @@ async function requestJson(pathname, options = {}) {
 async function requestBuffer(pathname, options = {}) {
   const credentials = await ensureValidCredentials();
   const url = buildUrl(pathname, options.query);
-  const response = await fetch(url, {
+  const send = (accessToken) => fetch(url, {
     method: options.method || "GET",
     headers: {
-      Authorization: `Bearer ${credentials.access_token}`,
+      Authorization: `Bearer ${accessToken}`,
       "X-API-Version": "1",
       ...(options.headers || {}),
     },
   });
+
+  let response = await send(credentials.access_token);
+  if (response.status === 401 && credentials.refresh_token) {
+    const refreshed = await refreshTokens(credentials.refresh_token);
+    const updatedCredentials = {
+      ...credentials,
+      access_token: refreshed.access_token,
+      refresh_token: refreshed.refresh_token,
+      user: refreshed.user || credentials.user || {},
+      updated_at: new Date().toISOString(),
+    };
+    saveCredentials(updatedCredentials);
+    response = await send(updatedCredentials.access_token);
+  }
 
   if (!response.ok) {
     let message = "API request failed.";

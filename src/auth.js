@@ -36,12 +36,15 @@ function startCallbackServer({ port, pathName }) {
 
       const code = reqUrl.searchParams.get("code");
       const state = reqUrl.searchParams.get("state");
+      const accessToken = reqUrl.searchParams.get("access_token");
+      const refreshToken = reqUrl.searchParams.get("refresh_token");
+      const csrfToken = reqUrl.searchParams.get("csrf_token");
 
       res.statusCode = 200;
       res.setHeader("Content-Type", "text/html");
       res.end("<h2>Login complete. You can now return to the terminal.</h2>");
 
-      server.close(() => resolve({ code, state }));
+      server.close(() => resolve({ code, state, accessToken, refreshToken, csrfToken }));
     });
 
     server.on("error", (error) => {
@@ -85,8 +88,17 @@ async function exchangeCodeForTokens({ exchangeUrl, code, codeVerifier, redirect
     }),
   });
 
+  const unwrapAuthPayload = (payload) => {
+    if (payload && typeof payload === "object" && payload.data && typeof payload.data === "object") {
+      return payload.data;
+    }
+
+    return payload;
+  };
+
   if (postResponse.ok) {
-    return postResponse.json().catch(() => ({}));
+    const payload = await postResponse.json().catch(() => ({}));
+    return unwrapAuthPayload(payload);
   }
 
   // Some backends expose callback exchange as GET /auth/github/callback.
@@ -102,7 +114,7 @@ async function exchangeCodeForTokens({ exchangeUrl, code, codeVerifier, redirect
       const message = getPayload.message || "Login failed during token exchange.";
       throw new Error(message);
     }
-    return getPayload;
+    return unwrapAuthPayload(getPayload);
   }
 
   const postPayload = await postResponse.json().catch(() => ({}));
